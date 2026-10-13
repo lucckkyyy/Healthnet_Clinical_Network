@@ -1,0 +1,89 @@
+! Hardening for the three access switches. Apply the block that matches each switch
+! AFTER its base config (sw-a1.txt, sw-a2.txt, sw-s1.txt).
+! Some Packet Tracer versions do not support every command (aaa, ntp, sticky MAC).
+! If a line errors, note it in the README and skip it. Do not claim a feature you could not enable.
+
+! ===== COMMON to SW-A1, SW-A2, SW-S1 =====
+enable
+configure terminal
+service password-encryption
+enable secret HealthNet#Enable1
+ip domain-name healthnet.lab
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+username admin privilege 15 secret HealthNet#Admin1
+username helpdesk privilege 5 secret HealthNet#Help1
+privilege exec level 5 show ip interface brief
+privilege exec level 5 show vlan brief
+access-list 10 permit 10.10.20.0 0.0.0.255
+line vty 0 4
+ login local
+ transport input ssh
+ access-class 10 in
+ exec-timeout 5 0
+exit
+service timestamps log datetime msec
+logging host 10.10.50.12
+logging trap informational
+ntp server 10.10.50.12
+end
+
+! ===== SW-A1 (used: f0/1-3, unused: f0/4-24 and g0/2) =====
+configure terminal
+interface range f0/1-3
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range f0/4-24
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+interface g0/2
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+end
+write memory
+
+! ===== SW-A2 (used: f0/1-2, unused: f0/3-24 and g0/2) =====
+configure terminal
+interface range f0/1-2
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range f0/3-24
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+interface g0/2
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+end
+write memory
+
+! ===== SW-S1 (used: f0/1-3, unused: f0/4-24 and g0/2) =====
+configure terminal
+interface range f0/1-3
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+interface range f0/4-24
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+interface g0/2
+ switchport mode access
+ switchport access vlan 999
+ shutdown
+end
+write memory

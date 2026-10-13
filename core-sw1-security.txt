@@ -1,0 +1,101 @@
+! CORE-SW1 security layer. Apply AFTER configs/core-sw1.txt and after you have
+! recorded the "before ACL" results in docs/test-matrix.md.
+! tools/verify_policy.py parses the ACL blocks in this file, so keep the format.
+enable
+configure terminal
+
+! ---------- ACLs (one per VLAN, applied inbound on the SVI) ----------
+ip access-list extended CLIN-IN
+ permit udp any eq 68 any eq 67
+ permit udp 10.10.10.0 0.0.0.255 host 10.10.50.11 eq 53
+ permit tcp 10.10.10.0 0.0.0.255 host 10.10.50.10 eq 443
+ permit icmp 10.10.10.0 0.0.0.255 host 10.10.10.1
+ deny ip any any
+exit
+
+ip access-list extended ADMIN-IN
+ permit udp any eq 68 any eq 67
+ permit udp 10.10.20.0 0.0.0.255 host 10.10.50.11 eq 53
+ permit tcp 10.10.20.0 0.0.0.255 host 10.10.50.10 eq 443
+ permit ip 10.10.20.0 0.0.0.255 host 10.10.50.12
+ permit tcp 10.10.20.0 0.0.0.255 10.10.99.0 0.0.0.255 eq 22
+ permit icmp 10.10.20.0 0.0.0.255 host 10.10.20.1
+ deny ip any any
+exit
+
+ip access-list extended GUEST-IN
+ permit udp any eq 68 any eq 67
+ permit udp 10.10.30.0 0.0.0.255 host 10.10.50.11 eq 53
+ permit icmp 10.10.30.0 0.0.0.255 host 10.10.30.1
+ deny ip 10.10.30.0 0.0.0.255 10.10.0.0 0.0.255.255
+ permit ip 10.10.30.0 0.0.0.255 any
+exit
+
+ip access-list extended IOT-IN
+ permit udp any eq 68 any eq 67
+ permit tcp 10.10.40.0 0.0.0.255 host 10.10.50.10 eq 443
+ permit icmp 10.10.40.0 0.0.0.255 host 10.10.40.1
+ deny ip any any
+exit
+
+ip access-list extended SRV-IN
+ permit tcp 10.10.50.0 0.0.0.255 any established
+ permit udp host 10.10.50.11 eq 53 any
+ permit udp host 10.10.50.11 eq 67 any eq 67
+ permit icmp 10.10.50.0 0.0.0.255 any echo-reply
+ deny ip any any
+exit
+
+ip access-list extended MGMT-IN
+ permit udp 10.10.99.0 0.0.0.255 host 10.10.50.12 eq 514
+ permit udp 10.10.99.0 0.0.0.255 host 10.10.50.12 eq 123
+ permit tcp 10.10.99.0 0.0.0.255 10.10.20.0 0.0.0.255 established
+ permit icmp 10.10.99.0 0.0.0.255 10.10.20.0 0.0.0.255 echo-reply
+ deny ip any any
+exit
+
+interface vlan 10
+ ip access-group CLIN-IN in
+interface vlan 20
+ ip access-group ADMIN-IN in
+interface vlan 30
+ ip access-group GUEST-IN in
+interface vlan 40
+ ip access-group IOT-IN in
+interface vlan 50
+ ip access-group SRV-IN in
+interface vlan 99
+ ip access-group MGMT-IN in
+exit
+
+! ---------- Device access: SSH only, role-based local accounts ----------
+! Lab-only passwords. Change them and never reuse real ones in a public repo.
+service password-encryption
+enable secret HealthNet#Enable1
+ip domain-name healthnet.lab
+! If Packet Tracer prompts for a modulus, enter 1024.
+crypto key generate rsa general-keys modulus 1024
+ip ssh version 2
+username admin privilege 15 secret HealthNet#Admin1
+username helpdesk privilege 5 secret HealthNet#Help1
+! helpdesk gets read-only commands only
+privilege exec level 5 show ip interface brief
+privilege exec level 5 show vlan brief
+privilege exec level 5 show interfaces status
+aaa new-model
+aaa authentication login default local
+aaa authorization exec default local
+access-list 10 permit 10.10.20.0 0.0.0.255
+line vty 0 15
+ transport input ssh
+ access-class 10 in
+ exec-timeout 5 0
+exit
+
+! ---------- Logging and time ----------
+service timestamps log datetime msec
+logging host 10.10.50.12
+logging trap informational
+ntp server 10.10.50.12
+end
+write memory

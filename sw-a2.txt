@@ -1,0 +1,27 @@
+enable
+configure terminal
+hostname SW-A2
+vlan 30
+ name GUEST
+vlan 40
+ name MEDICAL-IOT
+vlan 99
+ name MGMT
+vlan 999
+ name BLACKHOLE
+interface f0/1
+ switchport mode access
+ switchport access vlan 30
+interface f0/2
+ switchport mode access
+ switchport access vlan 40
+interface g0/1
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 30,40,99
+interface vlan 99
+ ip address 10.10.99.12 255.255.255.0
+ no shutdown
+ip default-gateway 10.10.99.1
+end
+write memory
