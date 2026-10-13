@@ -1,12 +1,12 @@
-# 🏥 HealthNet - Segmented Clinical Network Lab
+# 🏭 PLC Batching Station
 
-## 📘 Modeling a Hospital Network Where Zones Are Kept Apart on Purpose
+## 📘 A Three-Pump Tank Batching Controller, Specified, Modeled, and Tested
 
-I work on the IT side of a hospital network, so I built this to model the part of that environment that matters most: keeping clinical workstations, admin systems, guest Wi-Fi, medical devices, and servers in separate zones, and allowing only the traffic each zone actually needs. A flat network is the easy thing to build. The interesting part is deciding what *shouldn't* be allowed and proving it.
+I built this project to learn more about what separates a PLC program that just turns outputs on from one that keeps working when something goes wrong. The station is a three-pump tank batching system that fills a tank, holds the batch, drains it, and repeats. The easy version runs one pump. The version I wanted to understand rotates the lead pump so wear is shared, detects a pump that doesn't report running, and switches to a standby pump without stopping the process.
 
-The lab is a scaled-down model in Cisco Packet Tracer: six VLANs, a multilayer core switch doing inter-VLAN routing, centralized DHCP, least-privilege ACLs, SSH-only management, port security, and centralized logging. It is a lab project, not a production design, and it doesn't claim to match the size of a real hospital network.
+I used the topics from my Mechatronics course: relay logic, timers and counters, comparison and integer math, state diagrams, and indirect addressing. It is a lab and simulation project, not a production control system.
 
-The part I care about most is the access policy. I wrote it as a table first, the way a change request would be written, then wrote the ACLs from it, then built a script that parses the ACL text and checks it against the policy, so a typo in a rule shows up as a failing test.
+I wrote the behavior down first as a state machine, then as a reference model I could test in software, and then as a rung-by-rung build sheet for Rockwell, with a Structured Text version and Siemens porting notes.
 
 ---
 
@@ -14,71 +14,77 @@ The part I care about most is the access policy. I wrote it as a table first, th
 
 | Check | Result |
 |---|---|
-| Access policy (6 VLANs, least privilege) | Documented in `docs/access-policy.md` |
-| Device configs: base, security, hardening, NAT | Complete in `configs/` |
-| ACL policy check, 20 cases (10 allow / 10 deny) | **20/20 pass** (`python3 tools/verify_policy.py`) |
-| Break/fix tickets (trunk, DHCP, ACL order, gateway) | Written in `troubleshooting/` |
-| Cisco Packet Tracer run | Results go in `docs/test-matrix.md` |
+| Process spec, state diagram, I/O table | Complete in `docs/` |
+| Reference model, 6 simulated scenarios | **6/6 pass** (`python3 model/run_tests.py`) |
+| Structured Text version (OpenPLC) | `st/pump_controller.st` |
+| Rockwell rung-by-rung build sheet | `rockwell/ladder-spec.md` |
+| Siemens porting notes | `siemens/porting-notes.md` |
+| RSLogix and S7-PLCSIM runs | Results go in `docs/test-log.md` |
 
-The script checks the ACL text against the policy. It does not emulate a network.
+The software model is the specification. It does not replace a run on a PLC or simulator.
 
 ---|---|
-| Topology, IP plan, access policy | Done |
-| Base and security device configs | Written |
-| ACL policy check (20 cases, 10 allow / 10 deny) | **20/20 pass** (`tools/verify_policy.py`) |
-| Fault tickets (trunk, DHCP, ACL order, gateway) | Prepared, not yet run |
-| Built and tested in Cisco Packet Tracer | In progress |
+| Process spec, state diagram, I/O table | Done |
+| Reference model with 6 simulated scenarios | **6/6 pass** (`model/run_tests.py`) |
+| Structured Text version (OpenPLC) | Written, not yet compiled |
+| Rockwell ladder (RSLogix) | Build sheet written, not yet entered |
+| Siemens port (TIA Portal, S7-PLCSIM) | Not started |
 
-The script checks the ACL text against the policy. It does not emulate a network, so the Packet Tracer results are recorded separately in `docs/test-matrix.md` as I run them.
+The software model is the specification. It is not a substitute for a PLC run, so RSLogix and Siemens results are recorded separately in `docs/test-log.md` as I get them.
 
 ---
 
 ## 🧠 Skills I Developed
 
-### **Network Segmentation & Routing**
-- Designing a six-VLAN layout (clinical, admin, guest, medical/IoT, servers, management) plus an unused blackhole native VLAN
-- Configuring trunks that carry only the VLANs each switch needs
-- Inter-VLAN routing on a multilayer switch, DHCP relay with `ip helper-address`, and NAT at the edge router
+### **Control Logic Design**
+- Writing a five-state sequence (Idle, Fill, Hold, Drain, Fault) before touching any ladder
+- Latched alarms with a reset that is refused while the unsafe condition is still present
+- Normally-closed stop and E-stop contacts, so a broken wire fails safe
 
-### **Least-Privilege Access Control**
-- Writing the policy as a table first, then turning it into one extended ACL per VLAN
-- Understanding why ACL order matters, why return traffic needs `established` or `echo-reply` rules, and how DHCP relay replies interact with an inbound ACL
-- Restricting SSH to the admin VLAN and using local admin and helpdesk accounts with different privilege levels
+### **Fault Handling & Redundancy**
+- Run-feedback fail detection with a timeout, so a pump that is commanded but not running is caught
+- Lead/lag rotation each batch, with automatic switchover to a standby pump
+- Dropping to a safe fault state when no healthy pump is left
 
-### **Device Hardening**
-- SSH-only access, port security, BPDU guard, shutting unused ports into a dead VLAN
-- Syslog and NTP to a central server so events line up in time
+### **PLC Programming Concepts**
+- Timers, counters, comparison instructions, and integer math
+- Indirect addressing: reading each batch's hold time from a recipe table by batch index
+- Manual and auto modes with the sequence held while in manual
 
-### **Testing & Verification**
-- Building a 20-case test matrix, including return paths, instead of only testing the happy path
-- Writing a Python verifier that parses the real ACL config, then breaking a rule on purpose to confirm the script catches it (20/20 dropped to 16/20)
+### **Testing**
+- A small tank-and-pump simulation to run six scenarios: normal batch, pump failure, E-stop, high-high level, manual mode, and all pumps failed
+- Breaking the logic on purpose (removing rotation and fail detection) to confirm the tests catch it
 
-### **Troubleshooting & Documentation**
-- Four fault scenarios prepared as ticket-style write-ups: symptom, diagnosis steps, root cause, fix, prevention
-- Mapping configuration choices to eight NIST 800-53 controls, only for features I can actually enable
+### **Cross-Platform Thinking**
+- A concept map from Rockwell addressing to Siemens tags and IEC timers, and a Structured Text version that runs in the free OpenPLC Editor
 
 ---
 
 ## ⚡ What I Built
 
-- Six VLANs and three trunk links, with inter-VLAN routing on a multilayer core switch
-- Centralized DHCP and DNS server segment with relay on every client VLAN
-- Six inbound ACLs implementing the access policy
-- SSH-only management, admin and helpdesk roles, port security, syslog, NTP, and NAT
-- A policy verifier (`tools/verify_policy.py`) that runs 20 cases against the real config
-- A step-by-step build guide and four prepared break/fix tickets
+- A reference model of the controller, written as one function per PLC scan
+- A simulation harness and six test scenarios
+- A rung-by-rung Rockwell build sheet with a full address map
+- An IEC 61131-3 Structured Text program for OpenPLC
+- Siemens porting notes, an I/O table, and a test log with separate columns per platform
 
-### Addressing at a glance
+### State diagram
 
-| VLAN | Name | Subnet |
-|---|---|---|
-| 10 | CLINICAL | 10.10.10.0/24 |
-| 20 | ADMIN | 10.10.20.0/24 |
-| 30 | GUEST | 10.10.30.0/24 |
-| 40 | MEDICAL-IOT | 10.10.40.0/24 |
-| 50 | SERVERS | 10.10.50.0/24 |
-| 99 | MGMT | 10.10.99.0/24 |
-| 999 | BLACKHOLE (unused native VLAN) | none |
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Fill: Start (auto mode)
+    Fill --> Hold: High level reached
+    Hold --> Drain: Hold timer done
+    Drain --> Idle: Low level, batches complete
+    Drain --> Fill: Low level, batches remaining
+    Fill --> Fault: No healthy pump left
+    Idle --> Fault: E-stop or high-high
+    Fill --> Fault: E-stop or high-high
+    Hold --> Fault: E-stop or high-high
+    Drain --> Fault: E-stop or high-high
+    Fault --> Idle: Reset, plant safe
+```
 
 ---
 
@@ -86,43 +92,39 @@ The script checks the ACL text against the policy. It does not emulate a network
 
 | Layer | Technology |
 |---|---|
-| Simulation | Cisco Packet Tracer |
-| Switching & routing | VLANs, 802.1Q trunks, SVIs, DHCP relay, static routes, NAT/PAT |
-| Security | Extended ACLs, SSH, local AAA, port security, BPDU guard |
-| Monitoring | Syslog, NTP |
-| Verification | Python 3 (ACL parser and policy checker) |
-| Frameworks | NIST 800-53 control mapping |
+| Rockwell | RSLogix, ladder logic (build sheet) |
+| Siemens | TIA Portal, S7-PLCSIM (port planned) |
+| Open alternative | OpenPLC Editor, Structured Text |
+| Modeling & tests | Python 3 |
 
 ---
 
 ## 🚀 Run It
 
 ```bash
-git clone https://github.com/lucckkyyy/healthnet-clinical-network.git
-cd healthnet-clinical-network
+git clone https://github.com/lucckkyyy/plc-batching-station.git
+cd plc-batching-station
 
-# Check the ACL policy (20 cases)
-python3 tools/verify_policy.py
+# Run the six software test scenarios
+python3 model/run_tests.py
 ```
 
-To build the network, follow `docs/build-guide.md`. Paste the files in `configs/` into the devices in Cisco Packet Tracer, then fill in the Packet Tracer results in `docs/test-matrix.md`.
+To run it on a PLC, enter the rungs from `rockwell/ladder-spec.md` in RSLogix, or import `st/pump_controller.st` into OpenPLC Editor. Then run the five scenarios in `docs/test-log.md` and record the results.
 
 ```
-healthnet-clinical-network/
-  docs/               ip-plan, access-policy, test-matrix, compliance-map, build-guide
-  configs/            base configs, core-sw1-security.txt, access-switch-hardening.txt
-  tools/              verify_policy.py
-  troubleshooting/    four fault tickets
-  screenshots/
+plc-batching-station/
+  docs/       io-table, test-log
+  model/      pump_controller.py, run_tests.py
+  st/         pump_controller.st
+  rockwell/   ladder-spec.md
+  siemens/    porting-notes.md
 ```
 
 ---
 
 ## 🚀 The Learning Outcome
 
-The biggest lesson was that a security policy is only as good as its tests. Writing the ACLs was the easy part. The real work was thinking through everything around them: return traffic, DHCP relay replies, rule order, and what happens when the broad "permit" rule lands above the "deny". Building a script that reads the actual config, and then breaking a rule on purpose to see it fail, made the policy something I could check instead of something I hoped was right.
-
-It also connected a lot of what I do at work, from segmentation and access reviews to troubleshooting, to something I can show and explain step by step.
+The main lesson was that the happy path is the smallest part of a controller. The sequence itself is a few rungs. Everything else, such as what happens when a pump doesn't start, when the E-stop opens mid-fill, or when a reset is pressed while the tank is still too full, is what makes the logic trustworthy. Writing the behavior as a testable model first, and breaking it on purpose to see the tests fail, made those cases concrete before I ever opened RSLogix.
 
 ---
 
